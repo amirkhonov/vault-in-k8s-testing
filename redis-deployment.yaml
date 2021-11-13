@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: redis
+      annotations:
+        vault.security.banzaicloud.io/vault-addr: 'VAULT_ADDRESS'
+        vault.security.banzaicloud.io/vault-auth-method: kubernetes
+        vault.security.banzaicloud.io/vault-namespace: app-namespace
+        vault.security.banzaicloud.io/vault-path: kubernetes-dev
+        vault.security.banzaicloud.io/vault-role: kubernetes-dev
+        vault.security.banzaicloud.io/vault-serviceaccount: default
+        vault.security.banzaicloud.io/vault-skip-verify: 'true'
+    spec:
+      volumes:
+        - name: redis-volume
+          persistentVolumeClaim:
+            claimName: redis-volume-claim
+      containers:
+        - name: redis
+          image: 'redis:5.0.1-alpine'
+          command:
+            - redis-server
+            - '--requirepass'
+            - $REDIS_PASSWORD
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: redis-configmap
+                optional: false
+          env:
+            - name: REDIS_PASSWORD
+              value: 'vault:kubernetes-dev/data/redis-password#redis-password'
+          volumeMounts:
+            - name: redis-volume
+              mountPath: /data
+      serviceAccount: default
